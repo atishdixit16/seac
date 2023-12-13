@@ -29,7 +29,6 @@ import lbforaging # noqa
 
 ex = Experiment(ingredients=[algorithm])
 ex.captured_out_filter = lambda captured_output: "Output capturing turned off."
-ex.observers.append(FileStorageObserver("./results/sacred"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,9 +49,11 @@ def config():
 
     num_env_steps = 100e6
 
-    eval_dir = "./results/video/{id}"
-    loss_dir = "./results/loss/{id}"
-    save_dir = "./results/trained_models/{id}"
+    base_dir = 'results'
+
+    eval_dir = "./"+base_dir+"/video/{id}"
+    loss_dir = "./"+base_dir+"/loss/{id}"
+    save_dir = "./"+base_dir+"/trained_models/{id}"
 
     log_interval = 2000
     save_interval = int(1e6)
@@ -60,6 +61,7 @@ def config():
     episodes_per_eval = 8
 
     parameter_sharing = False
+    ex.observers.append(FileStorageObserver("./"+base_dir+"/sacred"))
 
 
 for conf in glob.glob("configs/*.yaml"):
