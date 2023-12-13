@@ -59,6 +59,8 @@ def config():
     eval_interval = int(1e6)
     episodes_per_eval = 8
 
+    parameter_sharing = False
+
 
 for conf in glob.glob("configs/*.yaml"):
     name = f"{Path(conf).stem}"
@@ -159,6 +161,7 @@ def main(
     log_interval,
     save_interval,
     eval_interval,
+    parameter_sharing,
 ):
 
     if loss_dir:
@@ -189,6 +192,11 @@ def main(
         A2C(i, osp, asp)
         for i, (osp, asp) in enumerate(zip(envs.observation_space, envs.action_space))
     ]
+
+    if parameter_sharing:
+        for agent in agents[1:]:
+            agent.model.load_state_dict(agents[0].model.state_dict())
+
     obs = envs.reset()
 
     for i in range(len(obs)):
