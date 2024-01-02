@@ -24,8 +24,8 @@ from envs import make_vec_envs
 from wrappers import RecordEpisodeStatistics, SquashDones
 from model import Policy
 
-# import robotic_warehouse # noqa
-# import lbforaging # noqa
+import rware # noqa
+import lbforaging # noqa
 
 ex = Experiment(ingredients=[algorithm])
 ex.captured_out_filter = lambda captured_output: "Output capturing turned off."
