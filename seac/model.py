@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import gym
 from distributions import Categorical
 from utils import init
 
@@ -221,3 +222,28 @@ class MLPBase(NNBase):
         hidden_actor = self.actor(x)
 
         return self.critic_linear(hidden_critic), hidden_actor, rnn_hxs
+    
+
+class RewardNetwork(nn.Module):
+    def __init__(self, obs_space, act_space, hidden_size=64):
+        super(RewardNetwork, self).__init__()
+
+        obs_shape = obs_space.shape[0]
+        if isinstance(act_space, gym.spaces.Discrete):
+            act_shape = 1
+        else:
+            raise NotImplementedError('This code is only implemented for Discrete action_space') 
+
+        self.fc1 = nn.Linear(obs_shape + act_shape, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, 1)
+
+        # Initialize the weights orthogonally
+        nn.init.orthogonal_(self.fc1.weight.data)
+        nn.init.orthogonal_(self.fc2.weight.data)
+
+    def forward(self, state, action):
+        x = torch.cat([state, action], dim=1)
+        x = self.relu(self.fc1(x))
+        reward = self.fc2(x)
+        return reward

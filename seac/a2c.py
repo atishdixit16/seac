@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import numpy as np
 
 import gym
-from model import Policy, FCNetwork
+from model import Policy, FCNetwork, RewardNetwork
 from gym.spaces.utils import flatdim
 from storage import RolloutStorage
 from sacred import Ingredient
@@ -36,6 +36,8 @@ def config():
     num_processes = 4
     num_steps = 5
 
+    learn_reward = False
+
     device = "cpu"
 
 
@@ -52,16 +54,24 @@ class A2C:
         num_steps,
         num_processes,
         device,
+        learn_reward,
     ):
         self.agent_id = agent_id
         self.obs_size = flatdim(obs_space)
         self.action_size = flatdim(action_space)
         self.obs_space = obs_space
         self.action_space = action_space
+        self.learn_reward = learn_reward
 
         self.model = Policy(
             obs_space, action_space, base_kwargs={"recurrent": recurrent_policy},
         )
+
+        if self.learn_reward:
+            self.reward_model = RewardNetwork(obs_space, action_space)
+            self.reward_model.to(device)
+            self.reward_optimizer = optim.Adam(self.reward_model.parameters(), lr, eps=adam_eps)
+            self.reward_loss = nn.MSELoss()
 
         self.storage = RolloutStorage(
             obs_space,
@@ -101,6 +111,33 @@ class A2C:
             next_value, use_gae, gamma, gae_lambda, use_proper_time_limits,
         )
 
+
+    def compute_mapped_returns(self, storage_id, use_gae, gamma, gae_lambda, use_proper_time_limits):
+        obs_shape = self.storage.obs.size()[2:]
+        action_shape = self.storage.actions.size()[-1]
+        num_steps, num_processes, _ = self.storage.rewards.size()
+
+        with torch.no_grad():
+            mapped_values = self.model.get_value(
+                storage_id.obs.view(-1, *obs_shape),
+                storage_id.recurrent_hidden_states[0].view(
+                -1, self.model.recurrent_hidden_state_size
+                ),
+                storage_id.masks.view(-1, 1),
+            ).detach()
+            mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
+
+            mapped_rewards = self.reward_model.forward(
+                storage_id.obs[:-1].view(-1, *obs_shape),
+                storage_id.actions.view(-1, action_shape),
+            ).detach()
+            mapped_rewards = mapped_rewards.view(num_steps, num_processes, 1)
+            
+        return self.storage.compute_mapped_returns(
+            storage_id, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits,
+        )
+
+
     @algorithm.capture
     def update(
         self,
@@ -109,6 +146,10 @@ class A2C:
         entropy_coef,
         seac_coef,
         max_grad_norm,
+        use_gae, 
+        gamma, 
+        gae_lambda, 
+        use_proper_time_limits,
         device,
     ):
 
@@ -124,6 +165,19 @@ class A2C:
             self.storage.masks[:-1].view(-1, 1),
             self.storage.actions.view(-1, action_shape),
         )
+
+        if self.learn_reward:
+            reward_pred = self.reward_model.forward( 
+                self.storage.obs[:-1].view(-1, *obs_shape), 
+                self.storage.actions.view(-1, action_shape) 
+                )
+            rew_loss = self.reward_loss(reward_pred, self.storage.rewards.view(-1,1))
+            self.reward_optimizer.zero_grad()
+            rew_loss.backward()
+            self.reward_optimizer.step()
+            reward_loss = rew_loss.item()
+        else:
+            reward_loss = None
 
         values = values.view(num_steps, num_processes, 1)
         action_log_probs = action_log_probs.view(num_steps, num_processes, 1)
@@ -150,9 +204,15 @@ class A2C:
             )
             other_values = other_values.view(num_steps, num_processes, 1)
             logp = logp.view(num_steps, num_processes, 1)
-            other_advantage = (
-                storages[oid].returns[:-1] - other_values
-            )  # or storages[oid].rewards
+            if self.learn_reward:
+                returns_ = self.compute_mapped_returns(storages[oid], use_gae, gamma, gae_lambda, use_proper_time_limits)
+                other_advantage = (
+                    returns_ - other_values
+                )  
+            else:
+                other_advantage = (
+                    storages[oid].returns[:-1] - other_values
+                )  # or storages[oid].rewards
 
             importance_sampling = (
                 logp.exp() / (storages[oid].action_log_probs.exp() + 1e-7)
@@ -187,4 +247,5 @@ class A2C:
             "seac_value_loss": seac_coef
             * value_loss_coef
             * seac_value_loss.item(),
+            "reward_loss": reward_loss,
         }

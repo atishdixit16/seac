@@ -125,6 +125,59 @@ class RolloutStorage(object):
                         + self.rewards[step]
                     )
 
+    def compute_mapped_returns(
+        self, storage_id, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits=True
+    ):
+        mapped_returns = torch.zeros_like(storage_id.returns)
+        if use_proper_time_limits:
+            if use_gae:
+                gae = 0
+                for step in reversed(range(storage_id.rewards.size(0))):
+                    delta = (
+                        mapped_rewards[step]
+                        + gamma * mapped_values[step + 1] * storage_id.masks[step + 1]
+                        - mapped_values[step]
+                    )
+                    gae = delta + gamma * gae_lambda * storage_id.masks[step + 1] * gae
+                    gae = gae * storage_id.bad_masks[step + 1]
+                    mapped_returns[step] = gae + mapped_values[step]
+                return mapped_returns[:-1]
+            
+            else:
+                mapped_returns[-1] = mapped_values[-1]
+                for step in reversed(range(self.rewards.size(0))):
+                    mapped_returns[step] = (
+                        (
+                            mapped_returns[step + 1] * gamma * storage_id.masks[step + 1]
+                            + mapped_rewards[step]
+                        )
+                        * storage_id.bad_masks[step + 1]
+                        + (1 - storage_id.bad_masks[step + 1]) * mapped_values[step]
+                    )
+                return mapped_returns[:-1]
+            
+        else:
+            if use_gae:
+                gae = 0
+                for step in reversed(range(self.rewards.size(0))):
+                    delta = (
+                        mapped_rewards[step]
+                        + gamma * mapped_values[step + 1] * storage_id.masks[step + 1]
+                        - mapped_values[step]
+                    )
+                    gae = delta + gamma * gae_lambda * storage_id.masks[step + 1] * gae
+                    mapped_returns[step] = gae + mapped_values[step]
+                return mapped_returns[:-1]
+            
+            else:
+                mapped_returns[-1] = mapped_values[-1]
+                for step in reversed(range(self.rewards.size(0))):
+                    mapped_returns[step] = (
+                        mapped_returns[step + 1] * gamma * storage_id.masks[step + 1]
+                        + mapped_rewards[step]
+                    )
+                return mapped_returns[:-1]
+
     def feed_forward_generator(
         self, advantages, num_mini_batch=None, mini_batch_size=None
     ):
