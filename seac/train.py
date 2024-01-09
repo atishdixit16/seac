@@ -59,6 +59,8 @@ def config():
     save_interval = int(1e6)
     eval_interval = int(1e6)
     episodes_per_eval = 8
+    episodes_per_log = 10
+
 
     parameter_sharing = False
     ex.observers.append(FileStorageObserver("./"+base_dir+"/sacred"))
@@ -164,6 +166,7 @@ def main(
     save_interval,
     eval_interval,
     parameter_sharing,
+    episodes_per_log,
 ):
 
     if loss_dir:
@@ -210,7 +213,7 @@ def main(
         int(num_env_steps) // algorithm["num_steps"] // algorithm["num_processes"]
     )
 
-    all_infos = deque(maxlen=10)
+    all_infos = deque(maxlen=episodes_per_log)
 
     for j in range(1, num_updates + 1):
 
