@@ -36,7 +36,8 @@ def config():
     num_processes = 4
     num_steps = 5
 
-    learn_reward = False
+    map_reward = False
+    map_value = False
 
     device = "cpu"
 
@@ -54,20 +55,22 @@ class A2C:
         num_steps,
         num_processes,
         device,
-        learn_reward,
+        map_reward,
+        map_value,
     ):
         self.agent_id = agent_id
         self.obs_size = flatdim(obs_space)
         self.action_size = flatdim(action_space)
         self.obs_space = obs_space
         self.action_space = action_space
-        self.learn_reward = learn_reward
+        self.map_reward = map_reward
+        self.map_value = map_value
 
         self.model = Policy(
             obs_space, action_space, base_kwargs={"recurrent": recurrent_policy},
         )
 
-        if self.learn_reward:
+        if self.map_reward:
             self.reward_model = RewardNetwork(obs_space, action_space)
             self.reward_model.to(device)
             self.reward_optimizer = optim.Adam(self.reward_model.parameters(), lr, eps=adam_eps)
@@ -127,11 +130,14 @@ class A2C:
             ).detach()
             mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
 
-            mapped_rewards = self.reward_model.forward(
-                storage_id.obs[:-1].view(-1, *obs_shape),
-                storage_id.actions.view(-1, action_shape),
-            ).detach()
-            mapped_rewards = mapped_rewards.view(num_steps, num_processes, 1)
+            if self.map_reward:
+                mapped_rewards = self.reward_model.forward(
+                    storage_id.obs[:-1].view(-1, *obs_shape),
+                    storage_id.actions.view(-1, action_shape),
+                ).detach()
+                mapped_rewards = mapped_rewards.view(num_steps, num_processes, 1)
+            else:
+                mapped_rewards = storage_id.rewards
             
         return self.storage.compute_mapped_returns(
             storage_id, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits,
@@ -166,7 +172,7 @@ class A2C:
             self.storage.actions.view(-1, action_shape),
         )
 
-        if self.learn_reward:
+        if self.map_reward:
             reward_pred = self.reward_model.forward( 
                 self.storage.obs[:-1].view(-1, *obs_shape), 
                 self.storage.actions.view(-1, action_shape) 
@@ -177,7 +183,7 @@ class A2C:
             self.reward_optimizer.step()
             reward_loss = rew_loss.item()
         else:
-            reward_loss = None
+            reward_loss = -1
 
         values = values.view(num_steps, num_processes, 1)
         action_log_probs = action_log_probs.view(num_steps, num_processes, 1)
@@ -204,7 +210,7 @@ class A2C:
             )
             other_values = other_values.view(num_steps, num_processes, 1)
             logp = logp.view(num_steps, num_processes, 1)
-            if self.learn_reward:
+            if self.map_value:
                 returns_ = self.compute_mapped_returns(storages[oid], use_gae, gamma, gae_lambda, use_proper_time_limits)
                 other_advantage = (
                     returns_ - other_values
