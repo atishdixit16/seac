@@ -225,12 +225,12 @@ class MLPBase(NNBase):
     
 
 class RewardNetwork(nn.Module):
-    def __init__(self, obs_space, act_space, hidden_size=64):
+    def __init__(self, obs_space, act_space, n_agents, hidden_size=64):
         super(RewardNetwork, self).__init__()
 
         obs_shape = obs_space.shape[0]
         if isinstance(act_space, gym.spaces.Discrete):
-            act_shape = 1
+            act_shape = 1*n_agents
         else:
             raise NotImplementedError('This code is only implemented for Discrete action_space') 
 
@@ -242,8 +242,9 @@ class RewardNetwork(nn.Module):
         nn.init.orthogonal_(self.fc1.weight.data)
         nn.init.orthogonal_(self.fc2.weight.data)
 
-    def forward(self, state, action):
-        x = torch.cat([state, action], dim=1)
+    def forward(self, state, actions):
+        actions = torch.cat( [ action for action in actions], dim=1 ) 
+        x = torch.cat([state, actions], dim=1)
         x = self.relu(self.fc1(x))
         reward = self.fc2(x)
         return reward

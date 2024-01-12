@@ -198,6 +198,11 @@ def main(
         for i, (osp, asp) in enumerate(zip(envs.observation_space, envs.action_space))
     ]
 
+    # map reward models for agents, if map_reward is True
+    for agent in agents:
+        if agent.map_reward:
+            agent.init_reward_model(len(envs.observation_space))
+
     if parameter_sharing:
         for agent in agents[1:]:
             agent.model.load_state_dict(agents[0].model.state_dict())

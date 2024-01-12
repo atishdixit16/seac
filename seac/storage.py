@@ -126,20 +126,20 @@ class RolloutStorage(object):
                     )
 
     def compute_mapped_returns(
-        self, storage_id, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits=True
+        self, agent_id, storages, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits=True
     ):
-        mapped_returns = torch.zeros_like(storage_id.returns)
+        mapped_returns = torch.zeros_like(storages[agent_id].returns)
         if use_proper_time_limits:
             if use_gae:
                 gae = 0
-                for step in reversed(range(storage_id.rewards.size(0))):
+                for step in reversed(range(storages[agent_id].rewards.size(0))):
                     delta = (
                         mapped_rewards[step]
-                        + gamma * mapped_values[step + 1] * storage_id.masks[step + 1]
+                        + gamma * mapped_values[step + 1] * storages[agent_id].masks[step + 1]
                         - mapped_values[step]
                     )
-                    gae = delta + gamma * gae_lambda * storage_id.masks[step + 1] * gae
-                    gae = gae * storage_id.bad_masks[step + 1]
+                    gae = delta + gamma * gae_lambda * storages[agent_id].masks[step + 1] * gae
+                    gae = gae * storages[agent_id].bad_masks[step + 1]
                     mapped_returns[step] = gae + mapped_values[step]
                 return mapped_returns[:-1]
             
@@ -148,11 +148,11 @@ class RolloutStorage(object):
                 for step in reversed(range(self.rewards.size(0))):
                     mapped_returns[step] = (
                         (
-                            mapped_returns[step + 1] * gamma * storage_id.masks[step + 1]
+                            mapped_returns[step + 1] * gamma * storages[agent_id].masks[step + 1]
                             + mapped_rewards[step]
                         )
-                        * storage_id.bad_masks[step + 1]
-                        + (1 - storage_id.bad_masks[step + 1]) * mapped_values[step]
+                        * storages[agent_id].bad_masks[step + 1]
+                        + (1 - storages[agent_id].bad_masks[step + 1]) * mapped_values[step]
                     )
                 return mapped_returns[:-1]
             
@@ -162,10 +162,10 @@ class RolloutStorage(object):
                 for step in reversed(range(self.rewards.size(0))):
                     delta = (
                         mapped_rewards[step]
-                        + gamma * mapped_values[step + 1] * storage_id.masks[step + 1]
+                        + gamma * mapped_values[step + 1] * storages[agent_id].masks[step + 1]
                         - mapped_values[step]
                     )
-                    gae = delta + gamma * gae_lambda * storage_id.masks[step + 1] * gae
+                    gae = delta + gamma * gae_lambda * storages[agent_id].masks[step + 1] * gae
                     mapped_returns[step] = gae + mapped_values[step]
                 return mapped_returns[:-1]
             
@@ -173,7 +173,7 @@ class RolloutStorage(object):
                 mapped_returns[-1] = mapped_values[-1]
                 for step in reversed(range(self.rewards.size(0))):
                     mapped_returns[step] = (
-                        mapped_returns[step + 1] * gamma * storage_id.masks[step + 1]
+                        mapped_returns[step + 1] * gamma * storages[agent_id].masks[step + 1]
                         + mapped_rewards[step]
                     )
                 return mapped_returns[:-1]

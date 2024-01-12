@@ -65,16 +65,13 @@ class A2C:
         self.action_space = action_space
         self.map_reward = map_reward
         self.map_value = map_value
+        self.device = device
+        self.lr = lr
+        self.adam_eps = adam_eps
 
         self.model = Policy(
             obs_space, action_space, base_kwargs={"recurrent": recurrent_policy},
         )
-
-        if self.map_reward:
-            self.reward_model = RewardNetwork(obs_space, action_space)
-            self.reward_model.to(device)
-            self.reward_optimizer = optim.Adam(self.reward_model.parameters(), lr, eps=adam_eps)
-            self.reward_loss = nn.MSELoss()
 
         self.storage = RolloutStorage(
             obs_space,
@@ -84,14 +81,21 @@ class A2C:
             num_processes,
         )
 
-        self.model.to(device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr, eps=adam_eps)
+        self.model.to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), self.lr, eps=self.adam_eps)
 
         # self.intr_stats = RunningStats()
         self.saveables = {
             "model": self.model,
             "optimizer": self.optimizer,
         }
+
+    def init_reward_model(self, n_agents):
+        self.reward_model = RewardNetwork(self.obs_space, self.action_space, n_agents)
+        self.reward_model.to(self.device)
+        self.reward_optimizer = optim.Adam(self.reward_model.parameters(), self.lr, eps=self.adam_eps)
+        self.reward_loss = nn.MSELoss()
+
 
     def save(self, path):
         torch.save(self.saveables, os.path.join(path, "models.pt"))
@@ -115,32 +119,32 @@ class A2C:
         )
 
 
-    def compute_mapped_returns(self, storage_id, use_gae, gamma, gae_lambda, use_proper_time_limits):
+    def compute_mapped_returns(self, agent_id, storages, use_gae, gamma, gae_lambda, use_proper_time_limits):
         obs_shape = self.storage.obs.size()[2:]
         action_shape = self.storage.actions.size()[-1]
         num_steps, num_processes, _ = self.storage.rewards.size()
 
-        with torch.no_grad():
-            mapped_values = self.model.get_value(
-                storage_id.obs.view(-1, *obs_shape),
-                storage_id.recurrent_hidden_states[0].view(
-                -1, self.model.recurrent_hidden_state_size
-                ),
-                storage_id.masks.view(-1, 1),
-            ).detach()
-            mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
+        mapped_values = self.model.get_value(
+            storages[agent_id].obs.view(-1, *obs_shape),
+            storages[agent_id].recurrent_hidden_states[0].view(
+            -1, self.model.recurrent_hidden_state_size
+            ),
+            storages[agent_id].masks.view(-1, 1),
+        )
+        mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
 
+        with torch.no_grad():
             if self.map_reward:
                 mapped_rewards = self.reward_model.forward(
-                    storage_id.obs[:-1].view(-1, *obs_shape),
-                    storage_id.actions.view(-1, action_shape),
+                    storages[agent_id].obs[:-1].view(-1, *obs_shape),
+                    [st.actions.view(-1, action_shape) for st in storages ],
                 ).detach()
                 mapped_rewards = mapped_rewards.view(num_steps, num_processes, 1)
             else:
-                mapped_rewards = storage_id.rewards
+                mapped_rewards = storages[agent_id].rewards
             
         return self.storage.compute_mapped_returns(
-            storage_id, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits,
+            agent_id, storages, mapped_values, mapped_rewards, use_gae, gamma, gae_lambda, use_proper_time_limits,
         )
 
 
@@ -175,7 +179,7 @@ class A2C:
         if self.map_reward:
             reward_pred = self.reward_model.forward( 
                 self.storage.obs[:-1].view(-1, *obs_shape), 
-                self.storage.actions.view(-1, action_shape) 
+                [st.actions.view(-1, action_shape) for st in storages ]
                 )
             rew_loss = self.reward_loss(reward_pred, self.storage.rewards.view(-1,1))
             self.reward_optimizer.zero_grad()
@@ -211,7 +215,7 @@ class A2C:
             other_values = other_values.view(num_steps, num_processes, 1)
             logp = logp.view(num_steps, num_processes, 1)
             if self.map_value:
-                returns_ = self.compute_mapped_returns(storages[oid], use_gae, gamma, gae_lambda, use_proper_time_limits)
+                returns_ = self.compute_mapped_returns(oid, storages, use_gae, gamma, gae_lambda, use_proper_time_limits)
                 other_advantage = (
                     returns_ - other_values
                 )  
