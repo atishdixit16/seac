@@ -38,6 +38,7 @@ def config():
 
     map_reward = False
     map_value = False
+    map_reward_function = False
 
     device = "cpu"
 
@@ -57,6 +58,7 @@ class A2C:
         device,
         map_reward,
         map_value,
+        map_reward_function,
     ):
         self.agent_id = agent_id
         self.obs_size = flatdim(obs_space)
@@ -65,6 +67,7 @@ class A2C:
         self.action_space = action_space
         self.map_reward = map_reward
         self.map_value = map_value
+        self.map_reward_function = map_reward_function
         self.device = device
         self.lr = lr
         self.adam_eps = adam_eps
@@ -140,6 +143,11 @@ class A2C:
                     [st.actions.view(-1, action_shape) for st in storages ],
                 ).detach()
                 mapped_rewards = mapped_rewards.view(num_steps, num_processes, 1)
+            elif self.map_reward_function:
+                obs_list = storages[agent_id].obs[:-1].view(-1, *obs_shape)
+                act_list = np.array( [ st.actions.view(-1, action_shape) for st in storages ] ).T
+                for obs, actions in zip( obs_list, act_list ):
+                    mapped_rewards = # environment?
             else:
                 mapped_rewards = storages[agent_id].rewards
             
