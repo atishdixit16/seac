@@ -57,8 +57,7 @@ class RolloutStorage(object):
         self.bad_masks = self.bad_masks.to(device)
 
     def insert_reward_maps(self, rewards_map):
-        print('xxxx',rewards_map.shape)
-        self.reward_maps[self.step + 1].copy_(rewards_map)
+        self.reward_maps[self.step].copy_(rewards_map)
 
     def insert(
         self,

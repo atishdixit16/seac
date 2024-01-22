@@ -144,7 +144,8 @@ class A2C:
                 ).detach()
                 mapped_rewards = mapped_rewards.view(num_steps, num_processes, 1)
             elif self.mapped_reward_function:
-                mapped_rewards = storages[agent_id].reward_maps[self.agent_id]
+                mapped_rewards = storages[agent_id].reward_maps[:,:,self.agent_id]
+                mapped_rewards = mapped_rewards.reshape(*mapped_rewards.shape, 1)
             else:
                 mapped_rewards = storages[agent_id].rewards
             

@@ -261,7 +261,6 @@ def main(
                 ]
             )
 
-            print(step)
             if algorithm["mapped_reward_function"]:
                 for i in range(len(agents)):
                     agents[i].storage.insert_reward_maps(reward_array[:,:,i])
