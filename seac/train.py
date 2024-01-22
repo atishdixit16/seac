@@ -213,6 +213,13 @@ def main(
         agents[i].storage.obs[0].copy_(obs[i])
         agents[i].storage.to(algorithm["device"])
 
+    if algorithm["mapped_reward_function"]:
+        for i in range(len(obs)):
+            agents[i].storage.init_reward_map_storage( len(obs), 
+                                                      algorithm["num_steps"] , 
+                                                      algorithm["num_processes"] )
+            agents[i].storage.reward_map_storage_to(algorithm["device"])
+
     start = time.time()
     num_updates = (
         int(num_env_steps) // algorithm["num_steps"] // algorithm["num_processes"]
@@ -236,7 +243,12 @@ def main(
                     ]
                 )
             # Obser reward and next obs
+            reward_array = np.array(envs.reward_mapping_function(n_action))
+            reward_array = torch.from_numpy(reward_array).float().to(algorithm["device"])
+            # print(reward_array[:,:,2])
             obs, reward, done, infos = envs.step(n_action)
+            # print('reward type: ',type(reward))
+            # print('reward: ', reward)
             # envs.envs[0].render()
 
             # If done then clean the history of observations.
@@ -248,6 +260,12 @@ def main(
                     for info in infos
                 ]
             )
+
+            print(step)
+            if algorithm["mapped_reward_function"]:
+                for i in range(len(agents)):
+                    agents[i].storage.insert_reward_maps(reward_array[:,:,i])
+
             for i in range(len(agents)):
                 agents[i].storage.insert(
                     obs[i],

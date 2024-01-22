@@ -8,6 +8,8 @@ import numpy as np
 from gym import ObservationWrapper, spaces
 from gym.wrappers import TimeLimit as GymTimeLimit
 from gym.wrappers import Monitor as GymMonitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
+from typing import Any, Callable, List
 
 
 class RecordEpisodeStatistics(gym.Wrapper):
@@ -127,3 +129,24 @@ class Monitor(GymMonitor):
         self.video_recorder.capture_frame()
 
         return done
+    
+class MASubprocVecEnv(SubprocVecEnv):
+    """
+    Creates a simple vectorized wrapper for multi level PPO implementation which contains parallel implementation of `map_from` function
+
+    :param env_fns: a list of functions
+        that return environments to vectorize
+    """
+
+    def __init__(self, env_fns: List[Callable[[], gym.Env]],  start_method ):
+        super(MASubprocVecEnv, self).__init__(env_fns=env_fns, start_method=start_method)
+
+    def reward_mapping_function(self, actions, **method_kwargs) -> List[Any]:
+        """Call instance methods of vectorized environments."""
+        actions = [a.squeeze().cpu().numpy() for a in actions]
+        actions = list(zip(*actions))
+
+        target_remotes = self._get_target_remotes(None)
+        for remote, action in zip(target_remotes, actions):
+            remote.send( ("env_method", ("reward_mapping_function", (action,), method_kwargs  ) ) )
+        return [remote.recv() for remote in target_remotes]

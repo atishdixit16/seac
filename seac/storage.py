@@ -39,6 +39,12 @@ class RolloutStorage(object):
         self.num_steps = num_steps
         self.step = 0
 
+    def init_reward_map_storage(self, n_agents, num_steps, num_processes):
+        self.reward_maps = torch.zeros(num_steps, num_processes, n_agents)
+
+    def reward_map_storage_to(self, device):
+        self.reward_maps = self.reward_maps.to(device)
+
     def to(self, device):
         self.obs = self.obs.to(device)
         self.recurrent_hidden_states = self.recurrent_hidden_states.to(device)
@@ -49,6 +55,10 @@ class RolloutStorage(object):
         self.actions = self.actions.to(device)
         self.masks = self.masks.to(device)
         self.bad_masks = self.bad_masks.to(device)
+
+    def insert_reward_maps(self, rewards_map):
+        print('xxxx',rewards_map.shape)
+        self.reward_maps[self.step + 1].copy_(rewards_map)
 
     def insert(
         self,

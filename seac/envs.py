@@ -9,7 +9,7 @@ from gym.wrappers import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnvWrapper
 from stable_baselines3.common.vec_env.vec_video_recorder import VecVideoRecorder
 from stable_baselines3.common.vec_env.vec_normalize import VecNormalize as VecNormalize_
-from wrappers import TimeLimit, Monitor
+from wrappers import TimeLimit, Monitor, MASubprocVecEnv
 
 
 class MADummyVecEnv(DummyVecEnv):
@@ -48,7 +48,7 @@ def make_vec_envs(
     if dummy_vecenv or len(envs) == 1 or monitor_dir:
         envs = MADummyVecEnv(envs)
     else:
-        envs = SubprocVecEnv(envs, start_method="fork")
+        envs = MASubprocVecEnv(envs, start_method="fork")
 
     envs = VecPyTorch(envs, device)
     return envs
