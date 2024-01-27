@@ -243,8 +243,9 @@ def main(
                     ]
                 )
             # Obser reward and next obs
-            reward_array = np.array(envs.reward_mapping_function(n_action))
-            reward_array = torch.from_numpy(reward_array).float().to(algorithm["device"])
+            if algorithm["mapped_reward_function"]:
+                reward_array = np.array(envs.reward_mapping_function(n_action))
+                reward_array = torch.from_numpy(reward_array).float().to(algorithm["device"])
             # print(reward_array[:,:,2])
             obs, reward, done, infos = envs.step(n_action)
             # print('reward type: ',type(reward))
