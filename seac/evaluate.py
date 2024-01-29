@@ -1,5 +1,5 @@
 import torch
-import robotic_warehouse
+import rware
 import lbforaging
 import gym
 
@@ -17,7 +17,7 @@ env = TimeLimit(env, time_limit)
 env = RecordEpisodeStatistics(env)
 
 agents = [
-    A2C(i, osp, asp, 0.1, 0.1, False, 1, 1, "cpu")
+    A2C(i, osp, asp, 0.1, 0.1, False, 1, 1, "cpu", False, False, False)
     for i, (osp, asp) in enumerate(zip(env.observation_space, env.action_space))
 ]
 
