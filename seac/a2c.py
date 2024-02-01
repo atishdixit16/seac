@@ -133,7 +133,7 @@ class A2C:
             -1, self.model.recurrent_hidden_state_size
             ),
             storages[agent_id].masks.view(-1, 1),
-        )
+        ).detach()
         mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
 
         with torch.no_grad():
