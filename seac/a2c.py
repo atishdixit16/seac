@@ -127,14 +127,15 @@ class A2C:
         action_shape = self.storage.actions.size()[-1]
         num_steps, num_processes, _ = self.storage.rewards.size()
 
-        mapped_values = self.model.get_value(
-            storages[agent_id].obs.view(-1, *obs_shape),
-            storages[agent_id].recurrent_hidden_states[0].view(
-            -1, self.model.recurrent_hidden_state_size
-            ),
-            storages[agent_id].masks.view(-1, 1),
-        ).detach()
-        mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
+        with torch.no_grad():
+            mapped_values = self.model.get_value(
+                storages[agent_id].obs.view(-1, *obs_shape),
+                storages[agent_id].recurrent_hidden_states[0].view(
+                -1, self.model.recurrent_hidden_state_size
+                ),
+                storages[agent_id].masks.view(-1, 1),
+            )
+            mapped_values = mapped_values.view(num_steps+1, num_processes, 1)
 
         with torch.no_grad():
             if self.map_reward:
