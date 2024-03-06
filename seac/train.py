@@ -292,6 +292,10 @@ def main(
                 if writer:
                     writer.add_scalar(f"agent{agent.agent_id}/{k}", v, j)
 
+        if parameter_sharing:
+            for agent in agents[1:]:
+                agent.model.load_state_dict(agents[0].model.state_dict())
+
         for agent in agents:
             agent.storage.after_update()
 
